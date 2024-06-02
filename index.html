@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bioconect - Inicio de Sesión</title>
+    <style>
+        /* (Los estilos permanecen igual que antes) */
+    </style>
+</head>
+<body>
+    <!-- (Estructura HTML permanece igual que antes) -->
+
+    <script>
+        async function fetchAPI(url, options = {}) {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        }
+
+        async function iniciarSesion() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            // Aquí agregar lógica de autenticación
+            if (username && password) {
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('area-container').style.display = 'block';
+                await cargarAreas();
+            } else {
+                alert('Por favor, ingrese usuario y contraseña');
+            }
+        }
+
+        async function cargarAreas() {
+            try {
+                const areas = await fetchAPI('/api/areas');
+                const areaButtons = document.getElementById('area-buttons');
+                areaButtons.innerHTML = '';
+                areas.forEach(area => {
+                    const button = document.createElement('button');
+                    button.textContent = area;
+                    button.onclick = () => mostrarEquipos(area);
+                    areaButtons.appendChild(button);
+                });
+            } catch (error) {
+                console.error('Error al cargar áreas:', error);
+            }
+        }
+
+        async function mostrarEquipos(area) {
+            document.getElementById('area-container').style.display = 'none';
+            document.getElementById('equipos-titulo').textContent = area;
+            document.getElementById('equipos-container').style.display = 'block';
+            localStorage.setItem('areaActual', area);
+            await cargarEquipos(area);
+        }
+
+        async function cargarEquipos(area) {
+            try {
+                const equipos = await fetchAPI(`/api/equipos/${area}`);
+                const equiposButtons = document.getElementById('equipos-buttons');
+                equiposButtons.innerHTML = '';
+                equipos.forEach(equipo => {
+                    const button = document.createElement('button');
+                    button.textContent = equipo;
+                    button.onclick = () => mostrarMarcas(equipo);
+                    equiposButtons.appendChild(button);
+                });
+            } catch (error) {
+                console.error('Error al cargar equipos:', error);
+            }
+        }
+
+        async function mostrarMarcas(equipo) {
+            const area = localStorage.getItem('areaActual');
+            document.getElementById('equipos-container').style.display = 'none';
+            document.getElementById('detalles-titulo').textContent = equipo;
+            document.getElementById('detalles-container').style.display = 'block';
+            localStorage.setItem('equipoActual', equipo);
+            await mostrarDetalles(area, equipo);
+        }
+
+        async function mostrarDetalles(area, equipo) {
+            try {
+                const detalles = await fetchAPI(`/api/detalles/${area}/${equipo}`);
+                const detallesInfo = `
+                    <label>Modelo:</label>
+                    <input type="text" id="modelo" value="${detalles.modelo}">
+                    <label>Número de Serie:</label>
+                    <input type="text" id="numeroSerie" value="${detalles.numeroSerie}">
+                    <label>Marca:</label>
+                    <input type="text" id="marca" value="${detalles.marca}">
+                    <label>Fecha de Adquisición:</label>
+                    <input type="date" id="fechaAdquisicion" value="${detalles.fechaAdquisicion}">
+                    <label>Vida Útil:</label>
+                    <input type="text" id="vidaUtil" value="${detalles.vidaUtil}">
+                    <label>Fecha de Inicio de Operaciones:</label>
+                    <input type="date" id="inicioOperaciones" value="${detalles.inicioOperaciones}">
+                    <label>Última Fecha de Calibración:</label>
+                    <input type="date" id="ultimaCalibracion" value="${detalles.ultimaCalibracion}">
+                    <label>Responsable del Mantenimiento:</label>
+                    <input type="text" id="responsable" value="${detalles.responsable}">
+                    <label>Foto del Equipo:</label><br>
+                    <input type="file" accept="image/*" onchange="cargarImagen(event)"><br>
+                    <label>Comentarios:</label><br>
+                    <textarea rows="4" id="comentarios" placeholder="Ingrese sus comentarios aquí">${detalles.comentarios || ''}</textarea>
+                    <button onclick="guardarDetalles()">Guardar</button>
+                `;
+                document.getElementById('detalles-info').innerHTML = detallesInfo;
+                cargarImagenGuardada(area, equipo);
+            } catch (error) {
+                console.error('Error al cargar detalles:', error);
+            }
+        }
+
+        async function cargarImagen(event) {
+            const input = event.target;
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const dataURL = reader.result;
+                const imagenPreview = document.getElementById('imagen-preview');
+                imagenPreview.src = dataURL;
+                imagenPreview.style.display = 'block';
+                const area = localStorage.getItem('areaActual');
+                const equipo = localStorage.getItem('equipoActual');
+                const formData = new FormData();
+                formData.append('imagen', input.files[0]);
+                formData.append('area', area);
+                formData.append('equipo', equipo);
+                await fetch('/api/imagenes', {
+                    method: 'POST',
+                    body: formData
+                });
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+
+        async function cargarImagenGuardada(area, equipo) {
+            try {
+                const imagen = await fetchAPI(`/api/imagenes/${area}/${equipo}`);
+                if (imagen.url) {
+                    const imagenPreview = document.getElementById('imagen-preview');
+                    imagenPreview.src = imagen.url;
+                    imagenPreview.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error al cargar imagen guardada:', error);
+            }
+        }
+
+        async function guardarDetalles() {
+            const area = localStorage.getItem('areaActual');
+            const equipo = localStorage.getItem('equipoActual');
+            const detalles = {
+                area,
+                equipo,
+                modelo: document.getElementById('modelo').value,
+                numeroSerie: document.getElementById('numeroSerie').value,
+                marca: document.getElementById('marca').value,
+                fechaAdquisicion: document.getElementById('fechaAdquisicion').value,
+                vidaUtil: document.getElementById('vidaUtil').value,
+                inicioOperaciones: document.getElementById('inicioOperaciones').value,
+                ultimaCalibracion: document.getElementById('ultimaCalibracion').value,
+                responsable: document.getElementById('responsable').value,
+                comentarios: document.getElementById('comentarios').value
+            };
+            await fetchAPI('/api/detalles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(detalles)
+            });
+            alert('Detalles guardados exitosamente');
+        }
+
+        function volverLogin() {
+            showContainer('login');
+            localStorage.removeItem('areaActual');
+            localStorage.removeItem('equipoActual');
+        }
+
+        function volverArea() {
+            showContainer('area');
+        }
+
+        function volverEquipos() {
+            showContainer('equipos');
+        }
+
+        async function agregarArea() {
+            const nuevaArea = prompt('Ingrese el nombre de la nueva área:');
+            if (nuevaArea) {
+                await fetchAPI('/api/areas', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ nombre: nuevaArea })
+                });
+                await cargarAreas();
+            }
+        }
+
+        async function eliminarArea() {
+            const area = localStorage.getItem('areaActual');
+            if (area && confirm(`¿Está seguro de que desea eliminar el área ${area}?`)) {
+                await fetchAPI(`/api/areas/${area}`, { method: 'DELETE' });
+                await cargarAreas();
+                volverLogin();
+            }
+        }
+
+        async function agregarEquipo() {
+            const nuevoEquipo = prompt('Ingrese el nombre del nuevo equipo:');
+            const area = localStorage.getItem('areaActual');
+            if (nuevoEquipo && area) {
+                await fetchAPI('/api/equipos', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ area, equipo: nuevoEquipo })
+                });
+                await cargarEquipos(area);
+            }
+        }
+
+        async function eliminarEquipo() {
+            const area = localStorage.getItem('areaActual');
+            const equipo = localStorage.getItem('equipoActual');
+            if (equipo && area && confirm(`¿Está seguro de que desea eliminar el equipo ${equipo}?`)) {
+                await fetchAPI(`/api/equipos/${area}/${equipo}`, { method: 'DELETE' });
+                await cargarEquipos(area);
+                volverArea();
+            }
+        }
+
+        function showContainer(container) {
+            document.getElementById('login-container').style.display = 'none';
+            document.getElementById('area-container').style.display = 'none';
+            document.getElementById('equipos-container').style.display = 'none';
+            document.getElementById('detalles-container').style.display = 'none';
+            document.getElementById(`${container}-container`).style.display = 'block';
+        }
+    </script>
+</body>
+</html>
